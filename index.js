@@ -7,6 +7,11 @@ const port = process.env.PORT || 3000;
 // CORS को एनेबल करें
 app.use(cors());
 
+// रूट रूट (Root Route) - जब कोई Backend URL ओपन करे
+app.get('/', (req, res) => {
+    res.send('Website is running!');
+});
+
 // YouTube वीडियो डाउनलोड एंडपॉइंट
 app.get('/download', async (req, res) => {
     const videoURL = req.query.url;
