@@ -18,7 +18,7 @@ HEADERS = {
     "Referer": "https://www.youtube.com/",
 }
 
-def delete_after_delay(file_path, delay=120):
+def delete_after_delay(file_path, delay=240):
     """2 minute ke baad file delete karne ka function"""
     time.sleep(delay)
     try:
