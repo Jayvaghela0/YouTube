@@ -1,19 +1,4 @@
-{
-  "name": "youtube-downloader",
-  "version": "1.0.0",
-  "description": "A simple YouTube video downloader using ytdl-core and Express",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
-  "dependencies": {
-    "express": "^4.18.2",
-    "ytdl-core": "^4.11.0",
-    "cors": "^2.8.5"
-  },
-  "engines": {
-    "node": ">=14.0.0"
-  },
-  "author": "",
-  "license": "ISC"
-}
+Flask
+yt-dlp
+gunicorn
+flask-cors
