@@ -6,10 +6,10 @@ import threading
 import time
 
 app = Flask(__name__)
-CORS(app)  # Allow all origins
+CORS(app)
 
 DOWNLOAD_FOLDER = "downloads"
-COOKIES_FILE = "cookies.txt"  # Cookies file ka path
+COOKIES_FILE = "cookies.txt"
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
 HEADERS = {
@@ -18,8 +18,9 @@ HEADERS = {
     "Referer": "https://www.youtube.com/",
 }
 
+download_tasks = {}
+
 def delete_after_delay(file_path, delay=300):
-    """5 minute ke baad file delete karne ka function"""
     time.sleep(delay)
     try:
         if os.path.exists(file_path):
@@ -28,47 +29,58 @@ def delete_after_delay(file_path, delay=300):
     except Exception as e:
         print(f"Error deleting file: {e}")
 
+def download_video_task(video_url, video_id):
+    try:
+        ydl_opts = {
+            "format": "bestvideo+bestaudio/best",
+            "outtmpl": f"{DOWNLOAD_FOLDER}/%(title)s.%(ext)s",
+            "merge_output_format": "mp4",  # ✅ MP4 format force merge
+            "cookiefile": COOKIES_FILE,
+            "http_headers": HEADERS,
+            "noprogress": True,
+            "keepvideo": True  # ✅ Merge hone ke baad video delete nahi hoga
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(video_url, download=True)
+            file_path = ydl.prepare_filename(info)
+
+            if not file_path.endswith(".mp4"):
+                file_path += ".mp4"
+
+        threading.Thread(target=delete_after_delay, args=(file_path, 300)).start()
+        
+        download_tasks[video_id] = {
+            "status": "completed",
+            "title": info["title"],
+            "download_link": request.host_url + url_for("serve_file", filename=os.path.basename(file_path))
+        }
+
+    except Exception as e:
+        download_tasks[video_id] = {"status": "failed", "error": str(e)}
+
 @app.route("/")
 def home():
     return "YouTube Downloader is Running!"
 
 @app.route("/download", methods=["GET"])
-def download_video():
+def start_download():
     url = request.args.get("url")
     if not url:
         return jsonify({"error": "URL required"}), 400
 
-    try:
-        ydl_opts = {
-            "format": "bestvideo+bestaudio/best",
-            "outtmpl": f"{DOWNLOAD_FOLDER}/%(title)s.%(ext)s",
-            "merge_output_format": "mp4",  # Ensure MP4 output
-            "cookiefile": COOKIES_FILE,  # Cookies use kare
-            "http_headers": HEADERS,  # Headers add kare
-            "noprogress": True,  # Hide progress output
-        }
+    video_id = str(int(time.time()))  
+    download_tasks[video_id] = {"status": "processing"}
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            file_path = ydl.prepare_filename(info)
+    threading.Thread(target=download_video_task, args=(url, video_id)).start()
 
-            # Ensure correct file extension
-            if not file_path.endswith(".mp4"):
-                file_path += ".mp4"
+    return jsonify({"task_id": video_id, "status": "started"})
 
-        # ✅ File delete hone ka system (5 min)
-        threading.Thread(target=delete_after_delay, args=(file_path, 300)).start()
-
-        # ✅ Blogger frontend ke liye full URL return karo
-        download_url = request.host_url + url_for("serve_file", filename=os.path.basename(file_path))
-
-        return jsonify({
-            "title": info["title"],
-            "download_link": download_url
-        })
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+@app.route("/status/<task_id>")
+def check_status(task_id):
+    if task_id in download_tasks:
+        return jsonify(download_tasks[task_id])
+    return jsonify({"error": "Task not found"}), 404
 
 @app.route("/file/<filename>")
 def serve_file(filename):
