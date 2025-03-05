@@ -9,7 +9,14 @@ app = Flask(__name__)
 CORS(app)  # Allow all origins
 
 DOWNLOAD_FOLDER = "downloads"
+COOKIES_FILE = "cookies.txt"  # Cookies file ka path
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://www.youtube.com/",
+}
 
 def delete_after_delay(file_path, delay=120):
     """2 minute ke baad file delete karne ka function"""
@@ -33,6 +40,8 @@ def download_video():
         ydl_opts = {
             "format": "bestvideo+bestaudio/best",
             "outtmpl": f"{DOWNLOAD_FOLDER}/%(title)s.%(ext)s",
+            "cookiefile": COOKIES_FILE,  # Cookies use kare
+            "http_headers": HEADERS,  # Headers add kare
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
