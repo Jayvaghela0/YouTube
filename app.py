@@ -10,6 +10,8 @@ CORS(app)
 
 DOWNLOAD_FOLDER = "downloads"
 COOKIES_FILE = "cookies.txt"
+BACKEND_URL = "https://your-app.onrender.com"  # ✅ Apna backend URL manually yaha likho
+
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
 HEADERS = {
@@ -21,7 +23,6 @@ HEADERS = {
 download_tasks = {}
 
 def delete_after_delay(file_path, delay=300):
-    """5 minute ke baad file delete karne ka function"""
     time.sleep(delay)
     try:
         if os.path.exists(file_path):
@@ -31,10 +32,9 @@ def delete_after_delay(file_path, delay=300):
         print(f"Error deleting file: {e}")
 
 def download_video_task(video_url, video_id):
-    """Background me sirf video download karega (bina audio)"""
     try:
         ydl_opts = {
-            "format": "bestvideo",  # ✅ Sirf video download karega (audio nahi)
+            "format": "bestvideo",
             "outtmpl": f"{DOWNLOAD_FOLDER}/%(title)s.%(ext)s",
             "cookiefile": COOKIES_FILE,
             "http_headers": HEADERS,
@@ -47,11 +47,11 @@ def download_video_task(video_url, video_id):
 
         threading.Thread(target=delete_after_delay, args=(file_path, 300)).start()
         
-        # ✅ Update task status
+        # ✅ Fixed: Request context issue removed
         download_tasks[video_id] = {
             "status": "completed",
             "title": info["title"],
-            "download_link": request.host_url + url_for("serve_file", filename=os.path.basename(file_path))
+            "download_link": f"{BACKEND_URL}/file/{os.path.basename(file_path)}"
         }
 
     except Exception as e:
@@ -59,7 +59,7 @@ def download_video_task(video_url, video_id):
 
 @app.route("/")
 def home():
-    return "YouTube Video Downloader (Only Video, No Audio) is Running!"
+    return "YouTube Video Downloader is Running!"
 
 @app.route("/download", methods=["GET"])
 def start_download():
@@ -67,7 +67,7 @@ def start_download():
     if not url:
         return jsonify({"error": "URL required"}), 400
 
-    video_id = str(int(time.time()))  
+    video_id = str(int(time.time()))
     download_tasks[video_id] = {"status": "processing"}
 
     threading.Thread(target=download_video_task, args=(url, video_id)).start()
