@@ -9,6 +9,7 @@ app = Flask(__name__)
 CORS(app)
 
 DOWNLOAD_FOLDER = "downloads"
+FFMPEG_PATH = "/usr/bin/ffmpeg"  # ✅ Render par FFmpeg path
 COOKIES_FILE = "cookies.txt"
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
@@ -21,6 +22,7 @@ HEADERS = {
 download_tasks = {}
 
 def delete_after_delay(file_path, delay=300):
+    """5 minute ke baad file delete karne ka function"""
     time.sleep(delay)
     try:
         if os.path.exists(file_path):
@@ -30,6 +32,7 @@ def delete_after_delay(file_path, delay=300):
         print(f"Error deleting file: {e}")
 
 def download_video_task(video_url, video_id):
+    """Background me video download karega"""
     try:
         ydl_opts = {
             "format": "bestvideo+bestaudio/best",
@@ -38,7 +41,11 @@ def download_video_task(video_url, video_id):
             "cookiefile": COOKIES_FILE,
             "http_headers": HEADERS,
             "noprogress": True,
-            "keepvideo": True  # ✅ Merge hone ke baad video delete nahi hoga
+            "ffmpeg_location": FFMPEG_PATH,  # ✅ FFmpeg ka path set kiya
+            "postprocessors": [{
+                "key": "FFmpegVideoConvertor",
+                "preferedformat": "mp4",  # ✅ MP4 me convert karega
+            }]
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -50,6 +57,7 @@ def download_video_task(video_url, video_id):
 
         threading.Thread(target=delete_after_delay, args=(file_path, 300)).start()
         
+        # ✅ Update task status
         download_tasks[video_id] = {
             "status": "completed",
             "title": info["title"],
