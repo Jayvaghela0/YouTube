@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, url_for
 from flask_cors import CORS
 import yt_dlp
 import os
@@ -58,9 +58,12 @@ def download_video():
 
         threading.Thread(target=delete_after_delay, args=(file_path,)).start()
 
+        # ✅ **Fix: Full URL return karo**
+        download_url = request.host_url + url_for("serve_file", filename=os.path.basename(file_path))
+
         return jsonify({
             "title": info["title"],
-            "download_link": f"/file/{os.path.basename(file_path)}"
+            "download_link": download_url
         })
 
     except Exception as e:
