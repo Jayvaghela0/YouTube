@@ -18,8 +18,8 @@ HEADERS = {
     "Referer": "https://www.youtube.com/",
 }
 
-def delete_after_delay(file_path, delay=240):
-    """2 minute ke baad file delete karne ka function"""
+def delete_after_delay(file_path, delay=300):
+    """5 minute ke baad file delete karne ka function"""
     time.sleep(delay)
     try:
         if os.path.exists(file_path):
@@ -56,9 +56,10 @@ def download_video():
             if not file_path.endswith(".mp4"):
                 file_path += ".mp4"
 
-        threading.Thread(target=delete_after_delay, args=(file_path,)).start()
+        # ✅ File delete hone ka system (5 min)
+        threading.Thread(target=delete_after_delay, args=(file_path, 300)).start()
 
-        # ✅ **Fix: Full URL return karo**
+        # ✅ Blogger frontend ke liye full URL return karo
         download_url = request.host_url + url_for("serve_file", filename=os.path.basename(file_path))
 
         return jsonify({
