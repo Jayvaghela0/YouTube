@@ -1,66 +1,55 @@
 from flask import Flask, request, jsonify, send_file
-from flask_cors import CORS
-import yt_dlp
 import os
 import threading
 import time
+import yt_dlp
 
 app = Flask(__name__)
-CORS(app)  # Allow all origins
 
+# Ensure downloads folder exists
 DOWNLOAD_FOLDER = "downloads"
-COOKIES_FILE = "cookies.txt"  # Cookies file ka path
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Referer": "https://www.youtube.com/",
-}
-
-def delete_after_delay(file_path, delay=120):
-    """2 minute ke baad file delete karne ka function"""
+# Auto-delete function
+def auto_delete(file_path, delay=120):
     time.sleep(delay)
-    try:
+    if os.path.exists(file_path):
         os.remove(file_path)
-    except Exception as e:
-        print(f"Error deleting file: {e}")
 
-@app.route("/")
-def home():
-    return "YouTube Downloader is Running!"
-
-@app.route("/download", methods=["GET"])
+# YouTube video download route
+@app.route('/download', methods=['GET'])
 def download_video():
-    url = request.args.get("url")
+    url = request.args.get('url')
     if not url:
-        return jsonify({"error": "URL required"}), 400
-
+        return jsonify({"error": "URL is required"}), 400
+    
+    ydl_opts = {
+        'outtmpl': os.path.join(DOWNLOAD_FOLDER, '%(title)s.%(ext)s'),
+        'format': '399+251',
+    }
+    
     try:
-        ydl_opts = {
-            "format": "bestvideo+bestaudio/best",
-            "outtmpl": f"{DOWNLOAD_FOLDER}/%(title)s.%(ext)s",
-            "cookiefile": COOKIES_FILE,  # Cookies use kare
-            "http_headers": HEADERS,  # Headers add kare
-        }
-
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            file_path = ydl.prepare_filename(info)
-
-        threading.Thread(target=delete_after_delay, args=(file_path,)).start()
-
-        return jsonify({"title": info["title"], "download_link": f"/file/{os.path.basename(file_path)}"})
+            info_dict = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info_dict)
+            filename = filename.replace(".webm", ".mp4").replace(".mkv", ".mp4")  # Normalize format
+            
+        # Start auto-delete thread
+        threading.Thread(target=auto_delete, args=(filename,)).start()
+        
+        # Generate public download link
+        return jsonify({"download_url": f"/serve/{os.path.basename(filename)}"})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route("/file/<filename>")
+# Route to serve the downloaded file
+@app.route('/serve/<filename>')
 def serve_file(filename):
     file_path = os.path.join(DOWNLOAD_FOLDER, filename)
     if os.path.exists(file_path):
         return send_file(file_path, as_attachment=True)
     return jsonify({"error": "File not found"}), 404
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(debug=True)
