@@ -9,7 +9,6 @@ app = Flask(__name__)
 CORS(app)
 
 DOWNLOAD_FOLDER = "downloads"
-FFMPEG_PATH = "/usr/bin/ffmpeg"  # ✅ Render par FFmpeg path
 COOKIES_FILE = "cookies.txt"
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
@@ -32,28 +31,19 @@ def delete_after_delay(file_path, delay=300):
         print(f"Error deleting file: {e}")
 
 def download_video_task(video_url, video_id):
-    """Background me video download karega"""
+    """Background me sirf video download karega (bina audio)"""
     try:
         ydl_opts = {
-            "format": "bestvideo+bestaudio/best",
+            "format": "bestvideo",  # ✅ Sirf video download karega (audio nahi)
             "outtmpl": f"{DOWNLOAD_FOLDER}/%(title)s.%(ext)s",
-            "merge_output_format": "mp4",  # ✅ MP4 format force merge
             "cookiefile": COOKIES_FILE,
             "http_headers": HEADERS,
-            "noprogress": True,
-            "ffmpeg_location": FFMPEG_PATH,  # ✅ FFmpeg ka path set kiya
-            "postprocessors": [{
-                "key": "FFmpegVideoConvertor",
-                "preferedformat": "mp4",  # ✅ MP4 me convert karega
-            }]
+            "noprogress": True
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(video_url, download=True)
             file_path = ydl.prepare_filename(info)
-
-            if not file_path.endswith(".mp4"):
-                file_path += ".mp4"
 
         threading.Thread(target=delete_after_delay, args=(file_path, 300)).start()
         
@@ -69,7 +59,7 @@ def download_video_task(video_url, video_id):
 
 @app.route("/")
 def home():
-    return "YouTube Downloader is Running!"
+    return "YouTube Video Downloader (Only Video, No Audio) is Running!"
 
 @app.route("/download", methods=["GET"])
 def start_download():
