@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file, url_for
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import yt_dlp
 import os
@@ -31,10 +31,45 @@ def delete_after_delay(file_path, delay=300):
     except Exception as e:
         print(f"Error deleting file: {e}")
 
-def download_video_task(video_url, video_id):
+@app.route("/")
+def home():
+    return "YouTube Video Downloader is Running!"
+
+@app.route("/get_formats", methods=["GET"])
+def get_formats():
+    url = request.args.get("url")
+    if not url:
+        return jsonify({"error": "URL required"}), 400
+
     try:
         ydl_opts = {
             "format": "bestvideo",
+            "cookiefile": COOKIES_FILE,
+            "http_headers": HEADERS,
+            "noprogress": True,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+        
+        formats = []
+        for fmt in info["formats"]:
+            if fmt.get("vcodec") != "none" and fmt.get("acodec") == "none":  # ✅ Only Video (No Audio)
+                formats.append({
+                    "format_id": fmt["format_id"],
+                    "ext": fmt["ext"],
+                    "resolution": fmt.get("height", "Unknown"),
+                    "size": fmt.get("filesize", "Unknown")
+                })
+
+        return jsonify({"title": info["title"], "formats": formats})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+def download_video_task(video_url, format_id, video_id):
+    try:
+        ydl_opts = {
+            "format": format_id,
             "outtmpl": f"{DOWNLOAD_FOLDER}/%(title)s.%(ext)s",
             "cookiefile": COOKIES_FILE,
             "http_headers": HEADERS,
@@ -47,7 +82,6 @@ def download_video_task(video_url, video_id):
 
         threading.Thread(target=delete_after_delay, args=(file_path, 300)).start()
         
-        # ✅ Fixed: Request context issue removed
         download_tasks[video_id] = {
             "status": "completed",
             "title": info["title"],
@@ -57,20 +91,18 @@ def download_video_task(video_url, video_id):
     except Exception as e:
         download_tasks[video_id] = {"status": "failed", "error": str(e)}
 
-@app.route("/")
-def home():
-    return "YouTube Video Downloader is Running!"
-
 @app.route("/download", methods=["GET"])
 def start_download():
     url = request.args.get("url")
-    if not url:
-        return jsonify({"error": "URL required"}), 400
+    format_id = request.args.get("format_id")
+    
+    if not url or not format_id:
+        return jsonify({"error": "URL and format_id required"}), 400
 
     video_id = str(int(time.time()))
     download_tasks[video_id] = {"status": "processing"}
 
-    threading.Thread(target=download_video_task, args=(url, video_id)).start()
+    threading.Thread(target=download_video_task, args=(url, format_id, video_id)).start()
 
     return jsonify({"task_id": video_id, "status": "started"})
 
